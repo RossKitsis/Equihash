@@ -1,5 +1,7 @@
 // Equihash solver
 // Copyright (c) 2016-2016 John Tromp
+// Modified work Copyright AION Foundation 2017 (Author: Ross Kitsis ross@nuco.io)
+
 
 #include "blake/blake2.h"
 #ifdef __APPLE__

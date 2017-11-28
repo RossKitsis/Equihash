@@ -1,5 +1,6 @@
 // Wagner's algorithm for Generalized Birthday Paradox, a memory-hard proof-of-work
 // Copyright (c) 2016 John Tromp
+// Modified work Copyright AION Foundation 2017 (Author: Ross Kitsis ross@nuco.io)
 
 #include "equi_miner210.h"
 #include <unistd.h>
@@ -17,7 +18,7 @@ int hextobyte(const char * x) {
 
 int main(int argc, char **argv) {
   int nthreads = 1;
-  int nonce = 5;
+  int nonce = 0;
   int range = 1;
   bool showsol = false;
   const char *header = "";
@@ -82,14 +83,14 @@ int main(int argc, char **argv) {
   for (int r = 0; r < range; r++) {
     ((u32 *)headernonce)[27] = htole32(nonce+r);
 
-    memset(headernonce, 0, 108);
+    memset(headernonce, 1, 108);
     printf("Got here");
 
     for(int i = 0; i < HEADERNONCELEN; i++){
     	printf("%x", headernonce[i]);
     }
     printf("\n");
-
+    
     eq.setheadernonce(headernonce, sizeof(headernonce));
     for (int t = 0; t < nthreads; t++) {
       threads[t].id = t;
