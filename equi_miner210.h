@@ -580,113 +580,14 @@ struct equi
       return (slot->bytes[prevbo] & 0xf) << 4 | slot->bytes[prevbo + 1] >> 4;
       4
 #elif DIGITBITS % 8 == 4 && RESTBITS == 10
-
-      /*
-      printf("prevbo: %d\n", prevbo);
-      printf("getxhash0: %d\n", (slot->bytes[prevbo] & 0x3f) << 4 | slot->bytes[prevbo+1] >> 4);
-      for(int i = 0; i < 8; i++){
-    	  printf("%x ", slot->bytes[i]);
-      }
-      printf("\n");
-      printf("word: %d\n", slot->word);
-      exit(0);
-	  */
       return (slot->bytes[prevbo] & 0x3f) << 4 | slot->bytes[prevbo + 1] >> 4;
 #elif DIGITBITS % 8 == 0 && RESTBITS == 4
-      printf("getxhash0: %d\n", slot->bytes[prevbo] & 0xf);
-      printf("Size of slot bytes: %d\n", sizeof(slot->bytes) / sizeof(slot->bytes[0]));
-      for (int i = 0; i < sizeof(slot->bytes); i++)
-      {
-        printf("%x ", slot->bytes[i]);
-      }
-      printf("\n");
-      exit(0);
       return slot->bytes[prevbo] & 0xf;
+#elif DIGITBITS % 8 == 5 && RESTBITS == 8
+      //Placeholder to allow header to compile
+      return -1;
 #elif RESTBITS == 0
       return 0;
-//#elif WN == 210 && RESTBITS == 9
-//      return (slot->bytes[prevbo] & 0x1f) << 4 | slot->bytes[prevbo+1] >> 4;
-#elif DIGITBITS % 8 == 5 && RESTBITS == 9
-      printf("---- getxhash ------\n");
-      printf("getxhash prevbo: %d\n", prevbo);
-      for (int i = 0; i < sizeof(slot->bytes); i++)
-      {
-        printf("%x ", slot->bytes[i]);
-      }
-      printf("\n");
-
-      printf("\n");
-      printf("getxhash0: %d\n", (slot->bytes[prevbo] & 0x1f) << 3 | (slot->bytes[prevbo + 1] >> 5));
-
-      printf("\n");
-      exit(0);
-      return (slot->bytes[prevbo] & 0xf) << 5 | slot->bytes[prevbo + 1] >> 3;
-#elif DIGITBITS % 8 == 5 && RESTBITS == 8
-      //printf("slot->bytes[prevbo]: %d", slot->bytes[prevbo]);
-      /*
-      printf("---- getxhash ------\n");
-      printf("getxhash prevbo: %d\n", prevbo);
-      for(int i = prevbo; i < prevbo + sizeof(slot->bytes)/sizeof(slot->bytes[0]); i++){
-    	  printf("%x ", slot->bytes[i]);
-      }
-      printf("\n");
-
-      printf("\n");
-      printf("getxhash0: %d\n", (slot->bytes[prevbo] & 0x1f) << 3 | (slot->bytes[prevbo + 1] >> 5));
-
-      printf("\n");
-      exit(0);
-	  */
-      return (slot->bytes[prevbo] & 0x1f) << 3 | (slot->bytes[prevbo] >> 5);
-      //return (slot->bytes[prevbo] & 0x7) << 5 | slot->bytes[prevbo+1] >> 3;
-#elif DIGITBITS % 8 == 6 && RESTBITS == 8
-      return (slot->bytes[prevbo] & 0x3) << 6 | slot->bytes[prevbo + 1] >> 2;
-//#elif DIGITBITS % 8 == 5 && RESTBITS == 4
-//      return (slot->bytes[prevbo] & 0x3) << 6 | slot->bytes[prevbo+1] >> 2;
-//#elif DIGITBITS % 8 == 5 && RESTBITS == 4
-//      return (slot->bytes[prevbo] & 0x3) << 6 | slot->bytes[prevbo+1] >> 2;
-#elif DIGITBITS % 8 == 5 && RESTBITS == 4
-      //return slot->bytes[prevbo] >> 4;
-      return slot->bytes[prevbo] >> 0xf; //Maybe shift DIGITS % 8
-#elif WN == 210 && RESTBITS == 7
-
-      /*
-      printf("getxhash prevbo: %d\n", prevbo);
-      for(int i = prevbo; i < 4+prevbo; i++){
-    	  printf("%x ", slot->bytes[i]);
-      }
-      printf("\n");
-      printf("xhash0: %d\n", (slot->bytes[prevbo] & 0x3) << 5  | (slot->bytes[prevbo+1] >> 3));
-      exit(0);
-      */
-      return (slot->bytes[prevbo] & 0x3) << 5 | (slot->bytes[prevbo + 1] >> 3);
-      //return slot->bytes[prevbo] >> 4;
-      //return slot->bytes[prevbo] >> 0xf; //Maybe shift DIGITS % 8
-#elif WN == 210 && RESTBITS == 3
-
-      //Temporary
-      /*printf("getxhash prevbo: %d\n", prevbo);
-      for(int i = 0; i < sizeof(slot->bytes); i++){
-    	  printf("%x ", slot->bytes[i]);
-      }
-      printf("\n");
-      exit(0);
-      return 0;*/
-      //return slot->bytes[prevbo] >> 4;
-      return (slot->bytes[prevbo] & 0x3f) >> 3; //Maybe shift DIGITS % 8
-#elif WN == 210 && RESTBITS == 5
-
-      //Temporary
-      printf("getxhash prevbo: %d\n", prevbo);
-      for (int i = 0; i < 32; i++)
-      {
-        printf("%x ", slot->bytes[i]);
-      }
-      printf("\n");
-
-      return (slot->bytes[prevbo]) >> 3;
-      //return slot->bytes[prevbo] >> 4;
-
 #else
 #error not implemented
 #endif
@@ -699,44 +600,11 @@ struct equi
 #elif DIGITBITS % 4 == 0 && RESTBITS == 8
       return slot->bytes[prevbo];
 #elif DIGITBITS % 4 == 0 && RESTBITS == 10
-
-      printf("\n getxhash1 \n");
-      printf("prevbo: %d\n", prevbo);
-      for (int i = 0; i < 8; i++)
-      {
-        printf("%x ", slot->bytes[i]);
-      }
-      printf("\n");
-      exit(0);
-
       return (slot->bytes[prevbo] & 0x3) << 8 | slot->bytes[prevbo + 1];
-#elif RESTBITS == 0
-      return 0;
-      //#elif WN == 210 && RESTBITS == 9
-      //      return (pslot->hash->bytes[prevbo]&1) << 8 | pslot->hash->bytes[prevbo+1];
-
-#elif DIGITBITS % 4 == 1 && RESTBITS == 9
-      return (slot->bytes[prevbo] & 0x1) << 8 | slot->bytes[prevbo + 1];
 #elif DIGITBITS % 4 == 1 && RESTBITS == 8
-      return (slot->bytes[prevbo]) << 8 | slot->bytes[prevbo + 1];
-#elif DIGITBITS % 4 == 2 && RESTBITS == 8
-      return (slot->bytes[prevbo]) << 6 | (slot->bytes[prevbo + 1] & 0x3);
-#elif DIGITBITS % 4 == 1 && RESTBITS == 4
-      //return slot->bytes[prevbo] & 0xf;
-      return slot->bytes[prevbo] >> 0xf; //Maybe shift 3??
-#elif WN == 210 && RESTBITS == 7
-
-      //Temporary
-
-      return 0;
-#elif WN == 210 && RESTBITS == 3
-
-      //Temporary
-
-      return 0;
-#elif WN == 210 && RESTBITS == 5
-
-      //Temporary
+      //Placeholder to allow the header to compile
+      return -1;
+#elif RESTBITS == 0
       return 0;
 #else
 #error not implemented

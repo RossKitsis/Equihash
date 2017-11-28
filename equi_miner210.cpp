@@ -18,7 +18,7 @@ int hextobyte(const char * x) {
 
 int main(int argc, char **argv) {
   int nthreads = 1;
-  int nonce = 0;
+  int nonce = 5;
   int range = 1;
   bool showsol = false;
   const char *header = "";
@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
   for (int r = 0; r < range; r++) {
     ((u32 *)headernonce)[27] = htole32(nonce+r);
 
-    memset(headernonce, 1, 108);
+    memset(headernonce, 0, 108);
     printf("Got here");
 
     for(int i = 0; i < HEADERNONCELEN; i++){
