@@ -15,6 +15,7 @@
 #include <stdint.h> // for types uint32_t,uint64_t
 #include <string.h> // for functions memset
 #include <stdlib.h> // for function qsort
+#include <stdio.h>
 
 typedef uint32_t u32;
 typedef unsigned char uchar;
@@ -63,6 +64,12 @@ void setheader(blake2b_state *ctx, const char *headernonce) {
   memset(P->salt,     0, sizeof(P->salt));
   memcpy(P->personal, (const uint8_t *)personal, 16);
   blake2b_init_param(ctx, P);
+
+  // for(int i = 0; i < HEADERNONCELEN; i++){
+  //   printf("%.2x ", headernonce[i]);
+  // }
+  // printf("\n");
+
   blake2b_update(ctx, (const uchar *)headernonce, HEADERNONCELEN);
 }
 

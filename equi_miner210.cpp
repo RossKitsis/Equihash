@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
   u32 sumnsols = 0;
   char headernonce[HEADERNONCELEN];
   u32 hdrlen = strlen(header);
-  printf("%d\n", hdrlen);
+  //printf("%d\n", hdrlen);
   if (*hex) {
     assert(strlen(hex) == 2 * HEADERNONCELEN);
     for (int i = 0; i < HEADERNONCELEN; i++)
@@ -83,13 +83,12 @@ int main(int argc, char **argv) {
   for (int r = 0; r < range; r++) {
     ((u32 *)headernonce)[27] = htole32(nonce+r);
 
-    memset(headernonce, 0, 108);
-    printf("Got here");
+    //memset(headernonce, r, 108);
 
-    for(int i = 0; i < HEADERNONCELEN; i++){
-    	printf("%x", headernonce[i]);
-    }
-    printf("\n");
+    // for(int i = 0; i < HEADERNONCELEN; i++){
+    // 	printf("%x", headernonce[i]);
+    // }
+    // printf("\n");
     
     eq.setheadernonce(headernonce, sizeof(headernonce));
     for (int t = 0; t < nthreads; t++) {

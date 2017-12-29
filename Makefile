@@ -16,6 +16,10 @@ equi210:	equi210.h equi_miner210.h equi_miner210.cpp Makefile
 	@echo Building equi210
 	$(GPP) -g -std=c++11 -DLOGSPARK -DSPARKSCALE=11 equi_miner210.cpp blake/blake2b.cpp -o equi210
 
+equi210_p:	equi210.h equi_miner210.h equi_miner210.cpp Makefile
+	@echo Building equi210p
+	$(GPP) -g -std=c++11 equi_miner210.cpp blake/blake2b.cpp -o equi210p
+
 equi1:	equi.h equi_miner.h equi_miner.cpp Makefile
 	@echo Building equi1
 	$(GPP) equi_miner.cpp blake/blake2b.cpp -o equi1

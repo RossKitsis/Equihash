@@ -549,10 +549,10 @@ struct equi
       prevbo = 0;                             // byte offset for accessing hash form previous round
       if (!r)
       {
-        printf("\nRound 0\n");
-        printf("NextHashbytes: %d\n", nexthashbytes);
-        printf("NextHtUnits: %d\n", nexthtunits);
-        printf("prevbo: %d\n", prevbo);
+        // printf("\nRound 0\n");
+        // printf("NextHashbytes: %d\n", nexthashbytes);
+        // printf("NextHtUnits: %d\n", nexthtunits);
+        // printf("prevbo: %d\n", prevbo);
       }
 
       if (r)
@@ -562,13 +562,13 @@ struct equi
         prevbo = prevhtunits * sizeof(htunit) - prevhashbytes; // 0-1 or 0-3
         dunits = prevhtunits - nexthtunits;                    // number of words by which hash shrinks
 
-        printf("NextHashbytes: %d\n", nexthashbytes);
-        printf("NextHtUnites: %d\n", nexthtunits);
-        printf("PrevHashUnites: %d\n", nexthtunits);
-        printf("PrevHashbytes: %d\n", prevhashbytes);
-        printf("PrevHashUnits: %d\n", prevhtunits);
-        printf("prevbo: %d\n", prevbo);
-        printf("dunits: %d\n", dunits);
+        // printf("NextHashbytes: %d\n", nexthashbytes);
+        // printf("NextHtUnites: %d\n", nexthtunits);
+        // printf("PrevHashUnites: %d\n", nexthtunits);
+        // printf("PrevHashbytes: %d\n", prevhashbytes);
+        // printf("PrevHashUnits: %d\n", prevhtunits);
+        // printf("prevbo: %d\n", prevbo);
+        // printf("dunits: %d\n", dunits);
       }
     }
     // extract remaining bits in digit slots in same bucket still need to collide on
@@ -584,6 +584,9 @@ struct equi
 #elif DIGITBITS % 8 == 0 && RESTBITS == 4
       return slot->bytes[prevbo] & 0xf;
 #elif DIGITBITS % 8 == 5 && RESTBITS == 8
+      //Placeholder to allow header to compile
+      return -1;
+#elif DIGITBITS % 8 == 5 && RESTBITS == 7
       //Placeholder to allow header to compile
       return -1;
 #elif RESTBITS == 0
@@ -602,6 +605,9 @@ struct equi
 #elif DIGITBITS % 4 == 0 && RESTBITS == 10
       return (slot->bytes[prevbo] & 0x3) << 8 | slot->bytes[prevbo + 1];
 #elif DIGITBITS % 4 == 1 && RESTBITS == 8
+      //Placeholder to allow the header to compile
+      return -1;
+#elif DIGITBITS % 4 == 1 && RESTBITS == 7
       //Placeholder to allow the header to compile
       return -1;
 #elif RESTBITS == 0
@@ -1320,7 +1326,7 @@ struct equi
           if (htl.equal(slot0, slot1))
           {          // expect difference in last 32 bits unless duped
             hfull++; // record discarding
-            printf("DISCARDED");
+            //printf("DISCARDED");
             continue;
           }
           u32 xorbucketid; // determine bucket for s0 xor s1
@@ -1416,7 +1422,7 @@ struct equi
           if (htl.equal(slot0, slot1))
           {          // expect difference in last 32 bits unless duped
             hfull++; // record discarding
-            printf("DISCARDED");
+            //printf("DISCARDED");
             continue;
           }
           u32 xorbucketid; // determine bucket for s0 xor s1
@@ -1544,6 +1550,468 @@ struct equi
     }
   }
 
+
+#elif WN == 210 && WK == 9 && RESTBITS == 7
+  void digit1(const u32 id)
+  {
+    htlayout htl(this, 1);
+    collisiondata cd;
+    // threads process buckets in round-robin fashion
+    for (u32 bucketid = id; bucketid < NBUCKETS; bucketid += nthreads)
+    {
+      cd.clear();
+      slot0 *buck = htl.hta.heap0[bucketid]; // point to first slot of this bucket
+      u32 bsize = getnslots0(bucketid);      // grab and reset bucket size
+      for (u32 s1 = 0; s1 < bsize; s1++)
+      { // loop over slots
+        const htunit *slot1 = buck[s1];
+        u32 xhash0 = (slot1->bytes[htl.prevbo] & 0x3) << 5 | (slot1->bytes[htl.prevbo + 1] >> 3);
+        cd.addslot(s1, xhash0); // identify list of previous colliding slots
+        for (; cd.nextcollision();)
+        {
+          const u32 s0 = cd.slot();
+          const htunit *slot0 = buck[s0];
+          if (htl.equal(slot0, slot1))
+          {          // expect difference in last 32 bits unless duped
+            hfull++; // record discarding
+            continue;
+          }
+          u32 xorbucketid; // determine bucket for s0 xor s1
+          const uchar *bytes0 = slot0->bytes, *bytes1 = slot1->bytes;
+
+          xorbucketid = ((((u32)(bytes0[htl.prevbo + 1] ^ bytes1[htl.prevbo + 1]) & 0x7) << 8) | (bytes0[htl.prevbo + 2] ^ bytes1[htl.prevbo + 2])) << 3 | (bytes0[htl.prevbo + 3] ^ bytes1[htl.prevbo + 3]) >> 5;
+
+          // grab next available slot in that bucket
+          const u32 xorslot = getslot1(xorbucketid);
+          if (xorslot >= NSLOTS)
+          {
+            bfull++; // SAVEMEM determines how often this happens
+            printf("Full: %d\n", xorbucketid);
+            continue;
+          }
+          // start of slot for s0 ^ s1
+          htunit *xs = htl.hta.heap1[xorbucketid][xorslot];
+          // store xor of hashes possibly minus initial 0 word due to collision
+
+          for (u32 i = htl.dunits; i < htl.prevhtunits; i++)
+          {
+            xs++->word = slot0[i].word ^ slot1[i].word;
+          }
+          // store tree node right after hash
+          xs->tag = tree(bucketid, s0, s1);
+        }
+      }
+    }
+  }
+
+  void digit2(const u32 id)
+  {
+    htlayout htl(this, 2);
+    collisiondata cd;
+    for (u32 bucketid = id; bucketid < NBUCKETS; bucketid += nthreads)
+    {
+      cd.clear();
+      slot1 *buck = htl.hta.heap1[bucketid];
+      u32 bsize = getnslots1(bucketid);
+      for (u32 s1 = 0; s1 < bsize; s1++)
+      {
+        const htunit *slot1 = buck[s1];
+        u32 xhash1 = (slot1->bytes[htl.prevbo] & 0x1f) << 2 | (slot1->bytes[htl.prevbo + 1] >> 6);
+
+        cd.addslot(s1, xhash1);
+        for (; cd.nextcollision();)
+        {
+          const u32 s0 = cd.slot();
+          const htunit *slot0 = buck[s0];
+          if (htl.equal(slot0, slot1))
+          {
+            hfull++;
+            continue;
+          }
+          u32 xorbucketid;
+          const uchar *bytes0 = slot0->bytes, *bytes1 = slot1->bytes;
+
+          xorbucketid = ((((u32)(bytes0[htl.prevbo + 1] ^ bytes1[htl.prevbo + 1]) & 0x3f) << 8) | ((bytes0[htl.prevbo + 2] ^ bytes1[htl.prevbo + 2])));
+
+          const u32 xorslot = getslot0(xorbucketid);
+          if (xorslot >= NSLOTS)
+          {
+            bfull++;
+            continue;
+          }
+          htunit *xs = htl.hta.heap0[xorbucketid][xorslot];
+          for (u32 i = htl.dunits; i < htl.prevhtunits; i++)
+            xs++->word = slot0[i].word ^ slot1[i].word;
+          xs->tag = tree(bucketid, s0, s1);
+        }
+      }
+    }
+  }
+  void digit3(const u32 id)
+  {
+    htlayout htl(this, 3);
+    collisiondata cd;
+
+    // threads process buckets in round-robin fashion
+    for (u32 bucketid = id; bucketid < NBUCKETS; bucketid += nthreads)
+    {
+      cd.clear();                            // could have made this the constructor, and declare here
+      slot0 *buck = htl.hta.heap0[bucketid]; // point to first slot of this bucket
+      u32 bsize = getnslots0(bucketid);      // grab and reset bucket size
+      for (u32 s1 = 0; s1 < bsize; s1++)
+      { // loop over slots
+        const htunit *slot1 = buck[s1];
+
+
+        //Why prevbo+1 and not prevbo?????
+        //TODO: Find out wtf is happening here
+        u32 xhash0 = slot1->bytes[htl.prevbo+1] >> 1;
+
+        cd.addslot(s1, xhash0); // identify list of previous colliding slots
+        for (; cd.nextcollision();)
+        {
+          const u32 s0 = cd.slot();
+          const htunit *slot0 = buck[s0];
+          if (htl.equal(slot0, slot1))
+          {          // expect difference in last 32 bits unless duped
+            hfull++; // record discarding
+            continue;
+          }
+          u32 xorbucketid; // determine bucket for s0 xor s1
+          const uchar *bytes0 = slot0->bytes, *bytes1 = slot1->bytes;
+
+          // for(int i = 0; i < 4; i ++){
+          //   printf("%.2x " , bytes0[i]);
+          // }
+          // printf("\n");
+          // for(int i = 0; i < 4; i ++){
+          //   printf("%.2x " , bytes1[i]);
+          // }
+          // printf("\n");
+
+          // printf("Xor 0: %d\n", bytes0[htl.prevbo] ^ bytes1[htl.prevbo]);
+          // printf("Xor 1: %d\n", bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]);
+          // printf("Xor 2: %d\n", bytes0[htl.prevbo+2] ^ bytes1[htl.prevbo+2]);
+
+
+          xorbucketid = ((((u32)(bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]) & 0x1) << 8) | (bytes0[htl.prevbo + 2] ^ bytes1[htl.prevbo + 2])) << 5 | ((bytes0[htl.prevbo + 3] ^ bytes1[htl.prevbo + 3]) >> 3);
+
+          // printf("bucket id: %d\n", xorbucketid);
+          // printf("\n");
+
+
+          // grab next available slot in that bucket
+          const u32 xorslot = getslot1(xorbucketid);
+          if (xorslot >= NSLOTS)
+          {
+            bfull++; // SAVEMEM determines how often this happens
+            //printf("Full: %d\n", xorbucketid);
+            continue;
+          }
+          // start of slot for s0 ^ s1
+          htunit *xs = htl.hta.heap1[xorbucketid][xorslot];
+          // store xor of hashes possibly minus initial 0 word due to collision
+          for (u32 i = htl.dunits; i < htl.prevhtunits; i++)
+            xs++->word = slot0[i].word ^ slot1[i].word;
+          // store tree node right after hash
+          xs->tag = tree(bucketid, s0, s1);
+        }
+      }
+    }
+  }
+
+  void digit4(const u32 id)
+  {
+    htlayout htl(this, 4);
+    collisiondata cd;
+    for (u32 bucketid = id; bucketid < NBUCKETS; bucketid += nthreads)
+    {
+      cd.clear();
+      slot1 *buck = htl.hta.heap1[bucketid];
+      u32 bsize = getnslots1(bucketid);
+      for (u32 s1 = 0; s1 < bsize; s1++)
+      {
+        const htunit *slot1 = buck[s1];
+        u32 xhash1 = (slot1->bytes[htl.prevbo] & 0x7) << 4 | (slot1->bytes[htl.prevbo + 1] >> 4);
+        cd.addslot(s1, xhash1);
+        for (; cd.nextcollision();)
+        {
+          const u32 s0 = cd.slot();
+          const htunit *slot0 = buck[s0];
+          if (htl.equal(slot0, slot1))
+          {
+            hfull++;
+            continue;
+          }
+          u32 xorbucketid;
+          const uchar *bytes0 = slot0->bytes, *bytes1 = slot1->bytes;
+
+          xorbucketid = (((((u32)(bytes0[htl.prevbo + 1] ^ bytes1[htl.prevbo + 1]) & 0xf)) << 8) | (bytes0[htl.prevbo + 2] ^ bytes1[htl.prevbo + 2])) << 2 | ((bytes0[htl.prevbo + 3] ^ bytes1[htl.prevbo + 3]) >> 6);
+
+          const u32 xorslot = getslot0(xorbucketid);
+          if (xorslot >= NSLOTS)
+          {
+            bfull++;
+            continue;
+          }
+          htunit *xs = htl.hta.heap0[xorbucketid][xorslot];
+          for (u32 i = htl.dunits; i < htl.prevhtunits; i++)
+            xs++->word = slot0[i].word ^ slot1[i].word;
+          xs->tag = tree(bucketid, s0, s1);
+        }
+      }
+    }
+  }
+
+  void digit5(const u32 id)
+  {
+    htlayout htl(this, 5);
+    collisiondata cd;
+    // threads process buckets in round-robin fashion
+    for (u32 bucketid = id; bucketid < NBUCKETS; bucketid += nthreads)
+    {
+      cd.clear();                            // could have made this the constructor, and declare here
+      slot0 *buck = htl.hta.heap0[bucketid]; // point to first slot of this bucket
+      u32 bsize = getnslots0(bucketid);      // grab and reset bucket size
+      for (u32 s1 = 0; s1 < bsize; s1++)
+      { // loop over slots
+        const htunit *slot1 = buck[s1];
+
+        u32 xhash0 = (slot1->bytes[htl.prevbo] & 0x3f) << 1 | (slot1->bytes[htl.prevbo+1] >> 7);
+
+        cd.addslot(s1, xhash0); // identify list of previous colliding slots
+        for (; cd.nextcollision();)
+        {
+          const u32 s0 = cd.slot();
+          const htunit *slot0 = buck[s0];
+          if (htl.equal(slot0, slot1))
+          {          // expect difference in last 32 bits unless duped
+            hfull++; // record discarding
+            //printf("DISCARDED");
+            continue;
+          }
+          u32 xorbucketid; // determine bucket for s0 xor s1
+          const uchar *bytes0 = slot0->bytes, *bytes1 = slot1->bytes;
+
+          xorbucketid = (((u32)(bytes0[htl.prevbo + 1] ^ bytes1[htl.prevbo + 1]) & 0x7f) << 7) | (bytes0[htl.prevbo + 2] ^ bytes1[htl.prevbo + 2]) >> 1;
+
+          // grab next available slot in that bucket
+          const u32 xorslot = getslot1(xorbucketid);
+          if (xorslot >= NSLOTS)
+          {
+            bfull++; // SAVEMEM determines how often this happens
+            continue;
+          }
+          // start of slot for s0 ^ s1
+          htunit *xs = htl.hta.heap1[xorbucketid][xorslot];
+          // store xor of hashes possibly minus initial 0 word due to collision
+          for (u32 i = htl.dunits; i < htl.prevhtunits; i++)
+            xs++->word = slot0[i].word ^ slot1[i].word;
+          // store tree node right after hash
+          xs->tag = tree(bucketid, s0, s1);
+        }
+      }
+    }
+  }
+
+  void digit6(const u32 id)
+  {
+    htlayout htl(this, 6);
+    collisiondata cd;
+    for (u32 bucketid = id; bucketid < NBUCKETS; bucketid += nthreads)
+    {
+      cd.clear();
+      slot1 *buck = htl.hta.heap1[bucketid];
+      u32 bsize = getnslots1(bucketid);
+      for (u32 s1 = 0; s1 < bsize; s1++)
+      {
+        const htunit *slot1 = buck[s1];
+
+        u32 xhash1 = (slot1->bytes[htl.prevbo] & 0x1) << 6 | (slot1->bytes[htl.prevbo + 1] >> 2);
+
+        cd.addslot(s1, xhash1);
+        for (; cd.nextcollision();)
+        {
+          const u32 s0 = cd.slot();
+          const htunit *slot0 = buck[s0];
+          if (htl.equal(slot0, slot1))
+          {
+            hfull++;
+            continue;
+          }
+          u32 xorbucketid;
+          const uchar *bytes0 = slot0->bytes, *bytes1 = slot1->bytes;
+
+          xorbucketid = ((((u32)(bytes0[htl.prevbo + 1] ^ bytes1[htl.prevbo + 1]) & 0x3) << 8) | (bytes0[htl.prevbo + 2] ^ bytes1[htl.prevbo + 2])) << 4 | (bytes0[htl.prevbo + 3] ^ bytes1[htl.prevbo + 3]) >> 4;
+
+          const u32 xorslot = getslot0(xorbucketid);
+          if (xorslot >= NSLOTS)
+          {
+            bfull++;
+            continue;
+          }
+          htunit *xs = htl.hta.heap0[xorbucketid][xorslot];
+          for (u32 i = htl.dunits; i < htl.prevhtunits; i++)
+            xs++->word = slot0[i].word ^ slot1[i].word;
+          xs->tag = tree(bucketid, s0, s1);
+        }
+      }
+    }
+  }
+
+  void digit7(const u32 id)
+  {
+    htlayout htl(this, 7);
+    collisiondata cd;
+    // threads process buckets in round-robin fashion
+    for (u32 bucketid = id; bucketid < NBUCKETS; bucketid += nthreads)
+    {
+      cd.clear();                            // could have made this the constructor, and declare here
+      slot0 *buck = htl.hta.heap0[bucketid]; // point to first slot of this bucket
+      u32 bsize = getnslots0(bucketid);      // grab and reset bucket size
+      for (u32 s1 = 0; s1 < bsize; s1++)
+      { // loop over slots
+        const htunit *slot1 = buck[s1];
+
+        u32 xhash0 = ((slot1->bytes[htl.prevbo] & 0xf) << 3) | (slot1->bytes[htl.prevbo + 1] >> 5);
+
+        cd.addslot(s1, xhash0); // identify list of previous colliding slots
+        for (; cd.nextcollision();)
+        {
+          const u32 s0 = cd.slot();
+          const htunit *slot0 = buck[s0];
+          if (htl.equal(slot0, slot1))
+          {          // expect difference in last 32 bits unless duped
+            hfull++; // record discarding
+            continue;
+          }
+          u32 xorbucketid; // determine bucket for s0 xor s1
+          const uchar *bytes0 = slot0->bytes, *bytes1 = slot1->bytes;
+
+          //xorbucketid = ((((u32)(bytes0[htl.prevbo + 1] ^ bytes1[htl.prevbo + 1])) & 0x1f) << 8) | (bytes0[htl.prevbo + 2] ^ bytes1[htl.prevbo + 2]);
+          xorbucketid = ((((u32)(bytes0[htl.prevbo + 1] ^ bytes1[htl.prevbo + 1]) & 0x1f) << 8) | (bytes0[htl.prevbo + 2] ^ bytes1[htl.prevbo + 2])) << 1 | (bytes0[htl.prevbo + 3] ^ bytes1[htl.prevbo + 3]) >> 7;
+
+          // grab next available slot in that bucket
+          const u32 xorslot = getslot1(xorbucketid);
+          if (xorslot >= NSLOTS)
+          {
+            bfull++; // SAVEMEM determines how often this happens
+            continue;
+          }
+          // start of slot for s0 ^ s1
+          htunit *xs = htl.hta.heap1[xorbucketid][xorslot];
+          // store xor of hashes possibly minus initial 0 word due to collision
+          for (u32 i = htl.dunits; i < htl.prevhtunits; i++)
+            xs++->word = slot0[i].word ^ slot1[i].word;
+          // store tree node right after hash
+          xs->tag = tree(bucketid, s0, s1);
+        }
+      }
+    }
+  }
+
+  void digit8(const u32 id)
+  {
+    htlayout htl(this, 8);
+    collisiondata cd;
+    for (u32 bucketid = id; bucketid < NBUCKETS; bucketid += nthreads)
+    {
+      cd.clear();
+      slot1 *buck = htl.hta.heap1[bucketid];
+      u32 bsize = getnslots1(bucketid);
+      for (u32 s1 = 0; s1 < bsize; s1++)
+      {
+        const htunit *slot1 = buck[s1];
+
+        u32 xhash1 = slot1->bytes[htl.prevbo+1] & 0x7f;
+
+        cd.addslot(s1, xhash1);
+        for (; cd.nextcollision();)
+        {
+          const u32 s0 = cd.slot();
+          const htunit *slot0 = buck[s0];
+          if (htl.equal(slot0, slot1))
+          {
+            hfull++;
+            continue;
+          }
+          u32 xorbucketid;
+          const uchar *bytes0 = slot0->bytes, *bytes1 = slot1->bytes;
+
+          xorbucketid = ((u32)(bytes0[htl.prevbo+2] ^ bytes1[htl.prevbo+2]) << 6) | (bytes0[htl.prevbo + 3] ^ bytes1[htl.prevbo + 3]) >> 2;
+
+          const u32 xorslot = getslot0(xorbucketid);
+          if (xorslot >= NSLOTS)
+          {
+            bfull++;
+            continue;
+          }
+          htunit *xs = htl.hta.heap0[xorbucketid][xorslot];
+          for (u32 i = htl.dunits; i < htl.prevhtunits; i++)
+            xs++->word = slot0[i].word ^ slot1[i].word;
+          xs->tag = tree(bucketid, s0, s1);
+        }
+      }
+    }
+  }
+
+  // final round - Changed due to asymmety in 210,9
+  void digit9(const u32 id)
+  {
+    collisiondata cd;
+    htlayout htl(this, WK);
+    u32 nc = 0;
+    for (u32 bucketid = id; bucketid < NBUCKETS; bucketid += nthreads)
+    {
+      cd.clear();
+      slot0 *buck = htl.hta.heap0[bucketid]; // assume WK odd
+      u32 bsize = getnslots0(bucketid);      // assume WK odd
+      for (u32 s1 = 0; s1 < bsize; s1++)
+      {
+        const htunit *slot1 = buck[s1];
+
+        u32 xhash0 = ((slot1->bytes[htl.prevbo] & 0x3) << 5) | (slot1->bytes[htl.prevbo + 1] >> 3);
+
+        cd.addslot(s1, xhash0); // assume WK odd
+        for (; cd.nextcollision();)
+        {
+          const u32 s0 = cd.slot();
+          const htunit *slot0 = buck[s0];
+          // Check last 21 bits for collisions
+
+          bool isEqual = false;
+          char s0_1, s0_2, s0_3, s0_4 = 0;
+          char s1_1, s1_2, s1_3, s1_4 = 0;
+
+          s0_1 = slot0->bytes[htl.prevbo + 1] & 0x7;
+          s0_2 = slot0->bytes[htl.prevbo + 2];
+          s0_3 = slot0->bytes[htl.prevbo + 3];
+          s0_4 = slot0->bytes[htl.prevbo + 4] >> 6;
+
+          s1_1 = slot1->bytes[htl.prevbo + 1] & 0x7;
+          s1_2 = slot1->bytes[htl.prevbo + 2];
+          s1_3 = slot1->bytes[htl.prevbo + 3];
+          s1_4 = slot1->bytes[htl.prevbo + 4] >> 6;
+
+          if (s0_1 == s1_1 &&
+              s0_2 == s1_2 &&
+              s0_3 == s1_3 &&
+              s0_4 == s1_4)
+          {
+            isEqual = true;
+          }
+
+          if (isEqual && slot0[1].tag.prob_disjoint(slot1[1].tag))
+          {
+            candidate(tree(bucketid, s0, s1)); // so a match gives a solution candidate
+            nc++;
+          }
+        }
+      }
+    }
+  }
+
+
 #endif
 
   // final round looks simpler
@@ -1602,12 +2070,12 @@ void *worker(void *vp)
   equi *eq = tp->eq;
 
   if (tp->id == 0)
-    printf("Digit 0");
+    // printf("Digit 0");
   eq->digit0(tp->id);
 
   barrier(&eq->barry);
   if (tp->id == 0)
-    eq->showbsizes(0);
+    //eq->showbsizes(0);
   barrier(&eq->barry);
 
 #if WN == 200 && WK == 9 && RESTBITS == 10
@@ -1659,55 +2127,110 @@ void *worker(void *vp)
   eq->digit1(tp->id);
   barrier(&eq->barry);
   if (tp->id == 0)
-    eq->showbsizes(1);
+    //eq->showbsizes(1);
   barrier(&eq->barry);
 
   eq->digit2(tp->id);
   barrier(&eq->barry);
   if (tp->id == 0)
-    eq->showbsizes(2);
+    // eq->showbsizes(2);
   barrier(&eq->barry);
 
   eq->digit3(tp->id);
   barrier(&eq->barry);
   if (tp->id == 0)
-    eq->showbsizes(3);
+    // eq->showbsizes(3);
   barrier(&eq->barry);
 
   eq->digit4(tp->id);
   barrier(&eq->barry);
   if (tp->id == 0)
-    eq->showbsizes(4);
+    // eq->showbsizes(4);
   barrier(&eq->barry);
 
   eq->digit5(tp->id);
   barrier(&eq->barry);
   if (tp->id == 0)
-    eq->showbsizes(5);
+    // eq->showbsizes(5);
   barrier(&eq->barry);
 
   eq->digit6(tp->id);
   barrier(&eq->barry);
   if (tp->id == 0)
-    eq->showbsizes(6);
+    // eq->showbsizes(6);
   barrier(&eq->barry);
 
   eq->digit7(tp->id);
   barrier(&eq->barry);
   if (tp->id == 0)
-    eq->showbsizes(7);
+    // eq->showbsizes(7);
   barrier(&eq->barry);
 
   eq->digit8(tp->id);
   barrier(&eq->barry);
   if (tp->id == 0)
-    eq->showbsizes(8);
+    // eq->showbsizes(8);
   barrier(&eq->barry);
 
   eq->digit9(tp->id);
   barrier(&eq->barry);
 
-  pthread_exit(NULL);
+  // pthread_exit(NULL);
+  return 0;
+
+#elif WN == 210 && WK == 9 && RESTBITS == 7
+  eq->digit1(tp->id);
+  barrier(&eq->barry);
+  if (tp->id == 0)
+    //eq->showbsizes(1);
+  barrier(&eq->barry);
+
+  eq->digit2(tp->id);
+  barrier(&eq->barry);
+  if (tp->id == 0)
+    // eq->showbsizes(2);
+  barrier(&eq->barry);
+
+  eq->digit3(tp->id);
+  barrier(&eq->barry);
+  if (tp->id == 0)
+    // eq->showbsizes(3);
+  barrier(&eq->barry);
+
+  eq->digit4(tp->id);
+  barrier(&eq->barry);
+  if (tp->id == 0)
+    // eq->showbsizes(4);
+  barrier(&eq->barry);
+
+  eq->digit5(tp->id);
+  barrier(&eq->barry);
+  if (tp->id == 0)
+    // eq->showbsizes(5);
+  barrier(&eq->barry);
+
+  eq->digit6(tp->id);
+  barrier(&eq->barry);
+  if (tp->id == 0)
+    // eq->showbsizes(6);
+  barrier(&eq->barry);
+
+  eq->digit7(tp->id);
+  barrier(&eq->barry);
+  if (tp->id == 0)
+    // eq->showbsizes(7);
+  barrier(&eq->barry);
+
+  eq->digit8(tp->id);
+  barrier(&eq->barry);
+  if (tp->id == 0)
+    // eq->showbsizes(8);
+  barrier(&eq->barry);
+
+  eq->digit9(tp->id);
+  barrier(&eq->barry);
+
+  // pthread_exit(NULL);
   return 0;
 #else
 #error not implemented
